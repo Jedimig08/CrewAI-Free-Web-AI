@@ -102,6 +102,11 @@ async def models() -> dict[str, Any]:
         }
 
 
+@app.get("/api/crews", dependencies=[Depends(require_key)])
+async def crews() -> dict[str, Any]:
+    return {"crews": list(CREW_BUILDERS)}
+
+
 @app.post("/api/crew/run", dependencies=[Depends(require_key)])
 async def crew_run(req: RunRequest) -> dict[str, Any]:
     if req.crew not in CREW_BUILDERS:

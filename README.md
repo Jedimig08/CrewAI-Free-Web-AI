@@ -1,8 +1,11 @@
 # CrewAI + Free Web AI
 
-A three-service Docker stack:
+A four-service Docker stack:
 
 ```
+Web UI (http://localhost:3000)
+        │  /api/*  (key injected server-side)
+        ▼
 CrewAI API (FastAPI, :8000)
         │  OpenAI-compatible calls
         ▼
@@ -14,7 +17,8 @@ Chromium browser desktop (https://localhost:6081)
 
 - **browser** — LinuxServer Chromium with a persistent profile. You log into ChatGPT here once.
 - **gateway** — the `free-web-ai` Bun app. It exposes `/v1/chat/completions` and drives Chromium over CDP.
-- **crewai** — a FastAPI service running a two-agent crew (Researcher → Writer) against the gateway.
+- **crewai** — a FastAPI service running agent crews against the gateway.
+- **web** — an nginx container serving the web UI and proxying `/api` to CrewAI with the bearer token added server-side.
 
 The gateway and browser code live in the sibling **`free-web-ai`** repo. This repo only contains the CrewAI service and the Compose orchestration, so the gateway code is not duplicated here.
 
@@ -107,13 +111,20 @@ curl -X POST http://localhost:8000/api/crew/run \
 
 Interactive docs: `http://localhost:8000/docs`.
 
+## Web interface
+
+Open `http://localhost:3000` (bound to `127.0.0.1` by default). Pick a crew and model, type a prompt, and click **Run crew**. The UI discovers crews through `GET /api/crews`.
+
+Your browser never sees `CREWAI_API_KEY`: nginx in the `web` container adds the `Authorization` header when proxying `/api/*` to `crewai:8000`. The UI has no login of its own, so keep `WEB_HOST_BIND` at `127.0.0.1` unless you put it behind an authenticated reverse proxy.
+
 ## API
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/health` | none | Liveness probe |
 | `GET` | `/api/models` | Bearer `CREWAI_API_KEY` | Proxy of the gateway model list |
-| `POST` | `/api/crew/run` | Bearer `CREWAI_API_KEY` | Run the two-agent crew |
+| `GET` | `/api/crews` | Bearer `CREWAI_API_KEY` | List registered crew names |
+| `POST` | `/api/crew/run` | Bearer `CREWAI_API_KEY` | Run the selected crew |
 
 `POST /api/crew/run` body:
 

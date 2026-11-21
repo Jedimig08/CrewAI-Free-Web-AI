@@ -111,6 +111,28 @@ services:
     networks:
       - free-web-ai-net
 
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: crewai-web
+    container_name: crewai-web
+    restart: unless-stopped
+    environment:
+      CREWAI_API_KEY: ${CREWAI_API_KEY:?Set CREWAI_API_KEY in .env}
+    ports:
+      - "${WEB_HOST_BIND:-127.0.0.1}:${WEB_HOST_PORT:-3000}:80"
+    depends_on:
+      crewai:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - free-web-ai-net
+
 networks:
   free-web-ai-net:
     name: free-web-ai_free-web-ai-net

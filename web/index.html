@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CrewAI + Free Web AI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>CrewAI</h1>
+      <p>Run an agent crew against the free-web-ai gateway.</p>
+    </header>
+
+    <form id="run-form">
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt" name="prompt" rows="6" required
+                placeholder="Ask anything..."></textarea>
+
+      <div class="row">
+        <div>
+          <label for="crew">Crew</label>
+          <select id="crew" name="crew"></select>
+        </div>
+        <div>
+          <label for="model">Model</label>
+          <select id="model" name="model"></select>
+        </div>
+      </div>
+
+      <button type="submit" id="submit">Run crew</button>
+    </form>
+
+    <section id="result-section" hidden>
+      <h2>Result</h2>
+      <pre id="result"></pre>
+    </section>
+
+    <section id="error-section" hidden>
+      <h2>Error</h2>
+      <pre id="error"></pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
