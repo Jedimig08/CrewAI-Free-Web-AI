@@ -121,7 +121,23 @@ Interactive docs: `http://localhost:8000/docs`.
 { "prompt": "Your task", "model": "chatgpt-auto", "crew": "research_write" }
 ```
 
-`model` is optional and defaults to `CREWAI_MODEL`. `crew` is optional and defaults to `research_write` (the only built-in crew so far). Additional crews can be registered in `CREW_BUILDERS` in `crewai/app.py`.
+`model` is optional and defaults to `CREWAI_MODEL`. `crew` is optional and defaults to `research_write`. Built-in crews:
+
+- `research_write` — Researcher → Writer, two sequential tasks.
+- `summarize` — one summarizer agent.
+
+### Adding a crew
+
+Each crew lives in its own file under `crewai/crews/`:
+
+1. Create `crewai/crews/my_crew.py` with `build_my_crew(llm: LLM, max_sec: int) -> Crew`.
+2. Register it in `crewai/crews/__init__.py`:
+   ```python
+   CREW_BUILDERS["my_crew"] = build_my_crew
+   ```
+3. Call it with `{"prompt": "...", "crew": "my_crew"}`.
+
+No changes to `app.py` or the endpoints are needed.
 
 ## Operations
 

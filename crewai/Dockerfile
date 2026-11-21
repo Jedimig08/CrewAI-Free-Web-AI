@@ -13,6 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=crewai:crewai app.py .
+COPY --chown=crewai:crewai crews ./crews
 
 USER crewai
 
