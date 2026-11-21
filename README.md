@@ -29,25 +29,27 @@ The gateway uses `network_mode: "service:browser"`, so it shares the browser con
 
 ```
 ~/Work/free-web-ai
-~/Work/CrewAi-setup-free-web-ai
+~/Work/CrewAI-Free-Web-AI
 ```
 
 ## Setup
 
 ```bash
-cd ~/Work/CrewAi-setup-free-web-ai
-cp .env.example .env
+cd ~/Work/CrewAI-Free-Web-AI
+./setup.sh
 ```
 
-Generate three different secrets:
+`setup.sh` creates `.env` from `.env.example` and generates three secrets:
 
-```bash
-openssl rand -hex 32   # TFG_API_KEY
-openssl rand -hex 32   # BROWSER_PASSWORD
-openssl rand -hex 32   # CREWAI_API_KEY
-```
+- `TFG_API_KEY` — bearer token for the gateway.
+- `BROWSER_PASSWORD` — login for the web desktop on 6081.
+- `CREWAI_API_KEY` — bearer token for the CrewAI API.
 
-Put them into `.env`. If you already ran the standalone `free-web-ai` stack, reuse its `TFG_API_KEY` and `BROWSER_PASSWORD` so the existing volumes and browser login keep working.
+It also fills `PUID`/`PGID` from `id -u`/`id -g` and `TZ` from the host timezone. Existing non-empty values are kept; use `./setup.sh --force` to regenerate the secrets. The script prints the values once; they are also stored in `.env`.
+
+`TFG_API_KEY` is optional. If it is empty, the gateway disables auth. That is only safe when the gateway is not reachable outside the Docker network, so the script generates one by default.
+
+If you are migrating from the standalone `free-web-ai` stack and want to keep its existing secrets, put them into `.env` before running `setup.sh`; the script keeps non-empty values.
 
 If the standalone stack is still running, stop it first (this keeps the volumes and the ChatGPT login):
 
@@ -59,7 +61,7 @@ docker compose down
 Then start this stack:
 
 ```bash
-cd ~/Work/CrewAi-setup-free-web-ai
+cd ~/Work/CrewAI-Free-Web-AI
 docker compose config
 docker compose up -d --build
 ```
@@ -75,7 +77,7 @@ If Compose warns that the volumes were "created for project `free-web-ai`", that
 3. In a terminal:
 
 ```bash
-cd ~/Work/CrewAi-setup-free-web-ai
+cd ~/Work/CrewAI-Free-Web-AI
 docker compose exec gateway bun index.ts webauth
 ```
 
@@ -84,7 +86,7 @@ It waits up to 5 minutes for the session token and prints `ChatGPT login success
 ## Verify
 
 ```bash
-cd ~/Work/CrewAi-setup-free-web-ai
+cd ~/Work/CrewAI-Free-Web-AI
 set -a; . ./.env; set +a
 
 curl http://localhost:3457/health
@@ -137,6 +139,7 @@ docker compose down -v       # delete volumes and login
 ## Security notes
 
 - Keep `BROWSER_GUI_HOST_PORT` (6081) on a trusted LAN or behind Tailscale. The desktop provides interactive access to the ChatGPT session.
+- `BROWSER_PASSWORD` is only the HTTP basic-auth password for the Selkies desktop on 6081. The gateway and CrewAI never use it; the gateway talks to Chromium over CDP on 9222. Keep it private because the desktop holds your ChatGPT session.
 - `CREWAI_HOST_BIND` defaults to `127.0.0.1`; do not expose port 8000 publicly without a reverse proxy and TLS.
 - `TFG_API_KEY` and `CREWAI_API_KEY` are different secrets. Never commit `.env`.
 - CDP `9222` is not published to the host, but it is reachable container-to-container on `free-web-ai-net`. Do not add untrusted services to that network.
