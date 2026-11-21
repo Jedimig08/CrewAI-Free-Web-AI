@@ -3,7 +3,7 @@ import logging
 import os
 import urllib.request
 from functools import lru_cache
-from typing import Any
+from typing import Any, Callable
 
 from crewai import Agent, Crew, LLM, Process, Task
 from fastapi import Depends, FastAPI, HTTPException
@@ -50,9 +50,7 @@ def build_llm(model: str) -> LLM:
     )
 
 
-def _run_crew(prompt: str, model: str) -> str:
-    llm = build_llm(model)
-
+def build_research_write_crew(llm: LLM, max_sec: int) -> Crew:
     researcher = Agent(
         role="Researcher",
         goal="Produce concise, accurate notes that answer the user's request.",
@@ -63,7 +61,7 @@ def _run_crew(prompt: str, model: str) -> str:
         llm=llm,
         allow_delegation=False,
         max_iter=5,
-        max_execution_time=CREWAI_MAX_EXECUTION_SEC,
+        max_execution_time=max_sec,
         verbose=False,
     )
     writer = Agent(
@@ -73,7 +71,7 @@ def _run_crew(prompt: str, model: str) -> str:
         llm=llm,
         allow_delegation=False,
         max_iter=5,
-        max_execution_time=CREWAI_MAX_EXECUTION_SEC,
+        max_execution_time=max_sec,
         verbose=False,
     )
 
@@ -92,19 +90,36 @@ def _run_crew(prompt: str, model: str) -> str:
         context=[research_task],
     )
 
-    crew = Crew(
+    return Crew(
         agents=[researcher, writer],
         tasks=[research_task, write_task],
         process=Process.sequential,
         verbose=False,
     )
-    result = crew.kickoff(inputs={"prompt": prompt})
-    return str(result)
+
+
+CREW_BUILDERS: dict[str, Callable[[LLM, int], Crew]] = {
+    "research_write": build_research_write_crew,
+}
+
+
+def run_crew(
+    prompt: str,
+    model: str,
+    crew_name: str = "research_write",
+    llm_factory: Callable[[str], LLM] = build_llm,
+) -> str:
+    builder = CREW_BUILDERS.get(crew_name)
+    if builder is None:
+        raise ValueError(f"Unknown crew: {crew_name}")
+    crew = builder(llm_factory(model), CREWAI_MAX_EXECUTION_SEC)
+    return str(crew.kickoff(inputs={"prompt": prompt}))
 
 
 class RunRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=20000)
     model: str | None = None
+    crew: str = "research_write"
 
 
 def _fetch_gateway_models() -> dict[str, Any]:
@@ -140,10 +155,12 @@ async def models() -> dict[str, Any]:
 
 @app.post("/api/crew/run", dependencies=[Depends(require_key)])
 async def crew_run(req: RunRequest) -> dict[str, Any]:
+    if req.crew not in CREW_BUILDERS:
+        raise HTTPException(status_code=400, detail=f"Unknown crew: {req.crew}")
     model = req.model or CREWAI_MODEL
-    logger.info("Running crew model=%s prompt_chars=%d", model, len(req.prompt))
+    logger.info("Running crew=%s model=%s prompt_chars=%d", req.crew, model, len(req.prompt))
     try:
-        result = await run_in_threadpool(_run_crew, req.prompt, model)
+        result = await run_in_threadpool(run_crew, req.prompt, model, req.crew)
     except Exception as exc:
         logger.exception("Crew run failed")
         raise HTTPException(status_code=502, detail=f"Crew run failed: {exc}") from exc

@@ -118,10 +118,10 @@ Interactive docs: `http://localhost:8000/docs`.
 `POST /api/crew/run` body:
 
 ```json
-{ "prompt": "Your task", "model": "chatgpt-auto" }
+{ "prompt": "Your task", "model": "chatgpt-auto", "crew": "research_write" }
 ```
 
-`model` is optional and defaults to `CREWAI_MODEL`.
+`model` is optional and defaults to `CREWAI_MODEL`. `crew` is optional and defaults to `research_write` (the only built-in crew so far). Additional crews can be registered in `CREW_BUILDERS` in `crewai/app.py`.
 
 ## Operations
 
