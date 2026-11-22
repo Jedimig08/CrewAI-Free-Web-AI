@@ -8,16 +8,35 @@ const resultEl = document.getElementById("result");
 const errorSection = document.getElementById("error-section");
 const errorEl = document.getElementById("error");
 
-async function getJSON(path) {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`${path}: ${res.status} ${await res.text()}`);
-  return res.json();
+function formatError(detail) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") return item.msg || JSON.stringify(item);
+        return String(item);
+      })
+      .join("; ");
+  }
+  if (detail && typeof detail === "object") return JSON.stringify(detail);
+  return "Unknown error";
 }
 
 function showError(message) {
   errorSection.hidden = false;
   errorEl.textContent = message;
   resultSection.hidden = true;
+}
+
+async function getJSON(path) {
+  const res = await fetch(path);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const detail = body ? (body.detail ?? body) : res.statusText;
+    throw new Error(`${path}: ${res.status} ${formatError(detail)}`);
+  }
+  return res.json();
 }
 
 async function loadOptions() {
@@ -42,6 +61,9 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   errorSection.hidden = true;
   resultSection.hidden = true;
+
+  const prompt = promptEl.value;
+
   submitBtn.disabled = true;
   submitBtn.textContent = "Running...";
 
@@ -50,13 +72,15 @@ form.addEventListener("submit", async (event) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt: promptEl.value,
+        prompt: prompt,
         crew: crewEl.value,
         model: modelEl.value || undefined,
       }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || JSON.stringify(data));
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(formatError(data.detail ?? data ?? response.statusText));
+    }
     resultSection.hidden = false;
     resultEl.textContent = data.result;
   } catch (err) {

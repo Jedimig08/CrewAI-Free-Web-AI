@@ -53,7 +53,7 @@ services:
       TFG_PORT: "3456"
       TFG_CDP_URL: "http://127.0.0.1:9222"
       TFG_API_KEY: ${TFG_API_KEY:?Set TFG_API_KEY in .env}
-      TFG_MAX_PROMPT_CHARS: ${TFG_MAX_PROMPT_CHARS:-8000}
+      TFG_CHUNK_CHARS: ${TFG_CHUNK_CHARS:-24000}
       TFG_REQUEST_TIMEOUT_SEC: ${TFG_REQUEST_TIMEOUT_SEC:-300}
     volumes:
       - gateway-data:/config

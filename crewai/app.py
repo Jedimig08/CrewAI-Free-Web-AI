@@ -66,7 +66,7 @@ def run_crew(
 
 
 class RunRequest(BaseModel):
-    prompt: str = Field(..., min_length=1, max_length=20000)
+    prompt: str = Field(..., min_length=1)
     model: str | None = None
     crew: str = "research_write"
 
