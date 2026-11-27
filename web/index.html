@@ -41,6 +41,85 @@
       <h2>Error</h2>
       <pre id="error"></pre>
     </section>
+
+    <form id="explain-form">
+      <h2>Explain a repository</h2>
+      <label for="repo-url">Public git URL</label>
+      <input id="repo-url" name="repo-url" type="text" required
+             placeholder="https://github.com/user/repo.git">
+
+      <div class="row">
+        <div>
+          <label for="mode">Mode</label>
+          <select id="mode" name="mode">
+            <option value="wiki">Wiki (overview + linked pages)</option>
+            <option value="line_by_line">Line by line</option>
+          </select>
+        </div>
+        <div>
+          <label for="granularity">Granularity</label>
+          <select id="granularity" name="granularity">
+            <option value="blocks">Logical blocks</option>
+            <option value="literal">Every line</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="max-workers">Workers</label>
+          <input id="max-workers" name="max-workers" type="number" min="1" max="16" value="4">
+        </div>
+        <div>
+          <label for="max-files">Max files</label>
+          <input id="max-files" name="max-files" type="number" min="1" max="500" value="150">
+        </div>
+      </div>
+
+      <label for="focus-paths">Focus paths (optional, comma separated)</label>
+      <input id="focus-paths" name="focus-paths" type="text" placeholder="src, docs">
+
+      <label class="checkbox">
+        <input id="refine" name="refine" type="checkbox" checked>
+        Correlation and revision pass
+      </label>
+
+      <label class="checkbox">
+        <input id="live" name="live" type="checkbox">
+        Show the explanation file as it is being built
+      </label>
+
+      <div class="button-row">
+        <button type="submit" id="explain-submit">Explain repo</button>
+        <button type="button" id="explain-cancel" disabled>Cancel job</button>
+      </div>
+    </form>
+
+    <section id="explain-status-section" hidden>
+      <h2>Progress</h2>
+      <pre id="explain-status"></pre>
+    </section>
+
+    <section id="explain-live-section" hidden>
+      <h2>Live file</h2>
+      <pre id="explain-live-text"></pre>
+    </section>
+
+    <section id="explain-changes-section" hidden>
+      <h2>Changes from the correlation pass</h2>
+      <pre id="explain-changes-text"></pre>
+    </section>
+
+    <section id="explain-result-section" hidden>
+      <h2>Explanation</h2>
+      <pre id="explain-text"></pre>
+      <div id="explain-downloads"></div>
+    </section>
+
+    <section id="explain-error-section" hidden>
+      <h2>Explainer error</h2>
+      <pre id="explain-error"></pre>
+    </section>
   </main>
 
   <script src="/app.js"></script>

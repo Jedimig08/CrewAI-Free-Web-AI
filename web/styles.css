@@ -40,7 +40,7 @@ label {
   font-size: 0.9rem;
 }
 
-textarea, select {
+textarea, select, input[type="text"], input[type="number"] {
   width: 100%;
   box-sizing: border-box;
   padding: 0.7rem;
@@ -64,6 +64,29 @@ textarea {
 
 .row > div {
   flex: 1;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+  font-weight: 400;
+}
+
+.checkbox input {
+  width: auto;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+#explain-cancel {
+  background: #475569;
+  color: #e2e8f0;
 }
 
 button {
@@ -102,7 +125,26 @@ pre {
   line-height: 1.5;
 }
 
-#error-section {
+#explain-text,
+#explain-live-text,
+#explain-changes-text {
+  max-height: 420px;
+  overflow: auto;
+}
+
+#explain-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+#explain-downloads a {
+  color: #38bdf8;
+}
+
+#error-section,
+#explain-error-section {
   border-color: #f87171;
   color: #fecaca;
 }

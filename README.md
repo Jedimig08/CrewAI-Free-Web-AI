@@ -115,6 +115,13 @@ Interactive docs: `http://localhost:8000/docs`.
 
 Open `http://localhost:3000` (bound to `127.0.0.1` by default). Pick a crew and model, type a prompt, and click **Run crew**. The UI discovers crews through `GET /api/crews`.
 
+The **Explain a repository** form starts an explain job, polls it with elapsed
+time and ETA, then shows the result with download links for every generated
+Markdown file. Tick **Show the explanation file as it is being built** to watch
+`live.md` grow in real time; use **Cancel job** to stop a running job. The
+correlation pass changes appear in a separate panel. The same proxy injects the
+bearer token, so the browser never sees `CREWAI_API_KEY` here either.
+
 Your browser never sees `CREWAI_API_KEY`: nginx in the `web` container adds the `Authorization` header when proxying `/api/*` to `crewai:8000`. The UI has no login of its own, so keep `WEB_HOST_BIND` at `127.0.0.1` unless you put it behind an authenticated reverse proxy.
 
 ## API
@@ -125,6 +132,11 @@ Your browser never sees `CREWAI_API_KEY`: nginx in the `web` container adds the 
 | `GET` | `/api/models` | Bearer `CREWAI_API_KEY` | Proxy of the gateway model list |
 | `GET` | `/api/crews` | Bearer `CREWAI_API_KEY` | List registered crew names |
 | `POST` | `/api/crew/run` | Bearer `CREWAI_API_KEY` | Run the selected crew |
+| `POST` | `/api/explain` | Bearer `CREWAI_API_KEY` | Start an async repo explanation job |
+| `GET` | `/api/explain` | Bearer `CREWAI_API_KEY` | List explain job ids |
+| `GET` | `/api/explain/{job_id}` | Bearer `CREWAI_API_KEY` | Poll job status, progress, ETA and result |
+| `POST` | `/api/explain/{job_id}/cancel` | Bearer `CREWAI_API_KEY` | Request cancellation of a running job |
+| `GET` | `/api/explain/{job_id}/files/{path}` | Bearer `CREWAI_API_KEY` | Download a generated Markdown file |
 
 `POST /api/crew/run` body:
 
@@ -137,18 +149,86 @@ Your browser never sees `CREWAI_API_KEY`: nginx in the `web` container adds the 
 - `research_write` — Researcher → Writer, two sequential tasks.
 - `summarize` — one summarizer agent.
 
+## Repo explainer
+
+The explainer clones a **public** git repository, reads it in numbered chunks,
+and writes Markdown explanations to `./explained-outputs/<job_id>/` on the host.
+It starts at entry points, injects a symbol index so a caller can be explained
+without seeing the file that defines a name, then runs a second pass that
+correlates the chunk summaries and revises explanations that needed the bigger
+picture. Chunks are processed in parallel by a bounded worker pool; results are
+keyed by line anchors so the output order is deterministic.
+
+Start a job:
+
+```bash
+curl -X POST http://localhost:8000/api/explain \
+  -H "Authorization: Bearer $CREWAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"repo_url":"https://github.com/user/repo.git","mode":"wiki","granularity":"blocks","refine":true,"max_workers":4}'
+```
+
+Poll it:
+
+```bash
+curl -H "Authorization: Bearer $CREWAI_API_KEY" \
+  http://localhost:8000/api/explain/<job_id>
+```
+
+`POST /api/explain` body:
+
+| Field | Default | Description |
+|---|---|---|
+| `repo_url` | required | Public http(s) git URL. Credentials and private addresses are rejected. |
+| `model` | `CREWAI_MODEL` | Model slug used by the explainer agents. |
+| `mode` | `wiki` | `wiki` (overview + linked pages) or `line_by_line` (one `line-by-line.md`). |
+| `granularity` | `blocks` | `blocks` (logical blocks with line ranges) or `literal` (one note per physical line). |
+| `refine` | `true` | Run the correlation and revision pass. |
+| `max_workers` | `4` | Parallel chunk workers for this job, capped by `EXPLAIN_MAX_WORKERS`. |
+| `max_files` | `150` | Maximum files to read. |
+| `focus_paths` | `null` | Optional list of paths/subtrees to restrict the explanation to. |
+| `live` | `false` | Write `live.md` after each finished chunk so the file can be watched while it builds. |
+
+The response returns `job_id` and `poll_url` immediately. The status response
+includes `status`, `progress`, `elapsed_seconds`, `eta_seconds`, `partial`,
+`files`, `error` and `text`. Statuses
+move through `queued → cloning → indexing → explaining → correlating → revising →
+assembling → completed` (or `failed`/`partial`/`cancelled`). `job.json` is written into each
+job directory, so polling survives an API restart.
+
+With `"live": true`, `live.md` is rewritten after each finished chunk in file/line
+order, with pending sections marked, so you can watch the explanation form in
+real time. `EXPLAIN_LIVE_EVERY` throttles those writes. `POST /api/explain/{job_id}/cancel`
+sets a flag checked between chunks; remaining work is skipped and the job ends as
+`cancelled`. When the correlation pass changes a section, `changes.md` records the
+before/after text and the instruction behind each change.
+
+Wiki output contains `overview.md` (start-here reading order, relationship
+narrative, file map, Mermaid dependency graph), `files/*.md` and `symbols/*.md`
+with cross-links. Line-by-line output is a single `line-by-line.md`.
+
+Limits and worker counts are configured in `.env.example`; see the
+"Repo explainer" section there. `EXPLAIN_ALLOW_LOCAL=true` enables `file://`
+URLs for local tests only and should never be enabled in production.
+
 ### Adding a crew
 
-Each crew lives in its own file under `crewai/crews/`:
+Crews are discovered automatically; there is nothing to register in `__init__.py`.
 
-1. Create `crewai/crews/my_crew.py` with `build_my_crew(llm: LLM, max_sec: int) -> Crew`.
-2. Register it in `crewai/crews/__init__.py`:
+1. Create `crewai/crews/my_crew.py` with exactly one builder function whose name starts with `build_`:
    ```python
-   CREW_BUILDERS["my_crew"] = build_my_crew
-   ```
-3. Call it with `{"prompt": "...", "crew": "my_crew"}`.
+   from crewai import Agent, Crew, LLM, Process, Task
 
-No changes to `app.py` or the endpoints are needed.
+   def build_my_crew(llm: LLM, max_sec: int) -> Crew:
+       ...
+   ```
+2. Rebuild the API image so the new file is copied into the container:
+   ```bash
+   docker compose up -d --build crewai
+   ```
+3. Call it with `{"prompt": "...", "crew": "my_crew"}`, or select it in the web UI.
+
+The registry key defaults to the filename (`my_crew.py` → `my_crew`). Set `CREW_NAME = "another_name"` in the module to override it, or `CREW_BUILDER = build_my_crew` to pick the builder explicitly (useful if the module has more than one `build_*` function). Files starting with `_` are ignored; a module that fails to import or has no unique builder is logged and skipped. No changes to `app.py`, `__init__.py`, or the endpoints are needed.
 
 ## Operations
 
